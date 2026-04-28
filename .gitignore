@@ -1,0 +1,68 @@
+# ==================================
+# 1. Java 编译产物与日志 (必须)
+# ==================================
+*.class
+*.log
+*.jar
+*.war
+*.zip
+*.tar.gz
+*.rar
+
+# ==================================
+# 2. IntelliJ IDEA 配置文件
+# ==================================
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+# ==================================
+# 3. Maven / Gradle 构建目录
+# ==================================
+target/
+build/
+.gradle/
+
+# ==================================
+# 4. 其他 IDE 配置
+# ==================================
+### Eclipse ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
+
+# ==================================
+# 5. 操作系统缓存文件
+# ==================================
+### Mac OS ###
+.DS_Store
+
+### Windows ###
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+
+# 忽略所有的 obj 存档文件
+*.obj
