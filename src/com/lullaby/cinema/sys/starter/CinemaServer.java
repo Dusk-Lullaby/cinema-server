@@ -1,5 +1,9 @@
 package com.lullaby.cinema.sys.starter;
 
+import com.lullaby.cinema.sys.message.Message;
+import com.lullaby.cinema.sys.task.MessageProcessTask;
+import com.lullaby.cinema.sys.util.SocketUtil;
+
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -23,8 +27,8 @@ public class CinemaServer {
             try {
                 // 等待客户端连接
                 Socket client = serverSocket.accept();
+                new Thread(new MessageProcessTask(client)).start();
                 // 信息处理
-
             } catch (IOException e) {
                 e.printStackTrace();
             }
