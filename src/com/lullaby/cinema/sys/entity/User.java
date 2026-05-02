@@ -28,7 +28,7 @@ public class User implements Serializable {
     /**
      * 状态：1-正常 0-冻结
      */
-    private int state;
+    private int state = 1;
 
     public User(String username, String password, String securityCode) {
         this.username = username;
