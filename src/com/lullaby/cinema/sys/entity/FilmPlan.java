@@ -80,7 +80,11 @@ public class FilmPlan implements Serializable {
 
     @Override
     public String toString() {
-        return id + "\t" + film.getName() + "\t" + film.getDescription() + "\t" + filmHall.getName() + "\t" +
-                DateUtil.date2str(begin) + "\t" + DateUtil.date2str(end) + "\t" + filmHall.getRestTicket();
+        String filmName = film == null ? "" : film.getName();
+        String desc = film == null ? "" : film.getDescription();
+        String hallName = filmHall == null? "" : filmHall.getName();
+        int ticket = filmHall == null ? 0 : filmHall.getRestTicket();
+        return id + "\t" + filmName + "\t" + desc + "\t" + hallName + "\t" +
+                DateUtil.date2str(begin) + "\t" + DateUtil.date2str(end) + "\t" + ticket;
     }
 }

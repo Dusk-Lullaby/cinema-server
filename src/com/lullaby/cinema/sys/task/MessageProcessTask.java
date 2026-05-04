@@ -3,6 +3,7 @@ package com.lullaby.cinema.sys.task;
 import com.lullaby.cinema.sys.entity.*;
 import com.lullaby.cinema.sys.entity.FilmHall;
 import com.lullaby.cinema.sys.message.Message;
+import com.lullaby.cinema.sys.util.DateUtil;
 import com.lullaby.cinema.sys.util.FileUtil;
 import com.lullaby.cinema.sys.util.SocketUtil;
 
@@ -76,8 +77,20 @@ public class MessageProcessTask implements Runnable{
                 case "deleteFilmPlan":
                     processDeleteFilmPlan(msg);
                     break;
-                case "getFilmPlanList":
+                case "getFilmPlan":
                     processGetFilmPlanList(msg);
+                    break;
+                case "getUserList": // 查看用户
+                    processGetUserList(msg);
+                    break;
+                case "frozenUser":  // 冻结用户
+                    processFrozenUser(msg);
+                    break;
+                case "unfrozenUser":    // 解冻用户
+                    processUnfrozenUser(msg);
+                    break;
+                case "getUnfrozenApplyList":    // 查看用户解冻申请
+                    processGetUnfrozenApplyList(msg);
                     break;
             }
         }
@@ -255,8 +268,8 @@ public class MessageProcessTask implements Runnable{
      */
     public void processGetFilmList(Message<String> msg) {
         String name = msg.getData();
-        List<FilmHall> films = FileUtil.readData(FileUtil.FILM_FILE);
-        List<FilmHall> result;
+        List<Film> films = FileUtil.readData(FileUtil.FILM_FILE);
+        List<Film> result;
         if (name == null || name.isEmpty()) {
             result = films;
         } else {
@@ -337,34 +350,121 @@ public class MessageProcessTask implements Runnable{
     }
 
     /**
-     * 添加播放计划
+     * 处理添加播放计划请求
      * @param msg 信息
      */
     public void processAddFilmPlan(Message<FilmPlan> msg) {
-
+        FilmPlan filmPlan = msg.getData();
+        List<FilmPlan> filmPlans = FileUtil.readData(FileUtil.FILM_PLAN_FILE);
+        boolean conflict = filmPlans.stream().anyMatch(plan -> DateUtil.isConflictPlan(plan, filmPlan));
+        if (conflict) { // 播放时间冲突
+            SocketUtil.sendBack(client, -1);
+        } else {
+            filmPlans.add(filmPlan);
+            boolean success = FileUtil.saveData(filmPlans, FileUtil.FILM_PLAN_FILE);
+            SocketUtil.sendBack(client, success ? 1 : 0);
+        }
     }
 
     /**
-     * 删除播放计划
+     * 处理删除播放计划请求
      * @param msg 信息
      */
-    public void processDeleteFilmPlan(Message<FilmPlan> msg) {
-
+    public void processDeleteFilmPlan(Message<String> msg) {
+        String planId = msg.getData();
+        List<FilmPlan> filmPlans = FileUtil.readData(FileUtil.FILM_PLAN_FILE);
+        int index = -1;
+        for (int i = 0; i < filmPlans.size(); i++) {
+            if (filmPlans.get(i).getId().equals(planId)) {
+                index = i;
+                break;
+            }
+        }
+        if (index == -1) {
+            SocketUtil.sendBack(client, -1);
+        } else {
+            filmPlans.remove(index);
+            boolean success = FileUtil.saveData(filmPlans, FileUtil.FILM_PLAN_FILE);
+            SocketUtil.sendBack(client, success ? 1 : 0);
+        }
     }
 
     /**
-     * 修改播放计划
+     * 处理修改播放计划请求
      * @param msg 信息
      */
     public void processUpdateFilmPlan(Message<FilmPlan> msg) {
+        FilmPlan filmPlan = msg.getData();
+        List<FilmPlan> filmPlans = FileUtil.readData(FileUtil.FILM_PLAN_FILE);
+        int index = -1;
+        for (int i = 0; i < filmPlans.size(); i++) {
+            if (filmPlans.get(i).getId().equals(filmPlan.getId())) {
+                index = i;
+                break;
+            }
+        }
+        if (index == -1) {  // 播放计划不存在
+            SocketUtil.sendBack(client, -2);
+        } else {
+            FilmPlan removeFilmPlan = filmPlans.remove(index);    // 先将原来的播放计划移除
+            filmPlan.setFilm(removeFilmPlan.getFilm());
+            filmPlan.setFilmHall(removeFilmPlan.getFilmHall());
+            // 然后再检测是否存在时间冲突
+            boolean conflict = filmPlans.stream().anyMatch(plan -> DateUtil.isConflictPlan(plan, filmPlan));
+            if (conflict) {
+                SocketUtil.sendBack(client, -1);
+            } else {
+                filmPlans.add(filmPlan);
+                boolean success = FileUtil.saveData(filmPlans, FileUtil.FILM_PLAN_FILE);
+                SocketUtil.sendBack(client, success ? 1 : 0);
+            }
+        }
+    }
+
+    /**
+     * 处理查看播放计划请求
+     * @param msg 信息
+     */
+    public void processGetFilmPlanList(Message<String> msg) {
+        String fileName = msg.getData();
+        List<FilmPlan> filmPlans = FileUtil.readData(FileUtil.FILM_PLAN_FILE);
+        if (fileName == null || fileName.isEmpty()) {
+            SocketUtil.sendBack(client, filmPlans);
+        } else {
+            List<FilmPlan> result = filmPlans.stream().filter(filePlan -> filePlan.getFilm().getName().contains(fileName) || fileName.contains(filePlan.getFilm().getName())).toList();
+            SocketUtil.sendBack(client, result);
+        }
+    }
+
+    /**
+     * 处理查看用户请求
+     * @param msg 信息
+     */
+    public void processGetUserList(Message<User> msg) {
 
     }
 
     /**
-     * 查看播放计划
+     * 处理查看用户解冻申请请求
      * @param msg 信息
      */
-    public void processGetFilmPlanList(Message<FilmPlan> msg) {
+    public void processGetUnfrozenApplyList(Message<User> msg) {
+
+    }
+
+    /**
+     * 处理冻结用户请求
+     * @param msg 信息
+     */
+    public void processFrozenUser(Message<User> msg) {
+
+    }
+
+    /**
+     * 处理解冻用户请求
+     * @param msg 信息
+     */
+    public void processUnfrozenUser(Message<User> msg) {
 
     }
 }
