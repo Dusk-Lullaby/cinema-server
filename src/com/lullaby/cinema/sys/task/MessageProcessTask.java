@@ -1,8 +1,7 @@
 package com.lullaby.cinema.sys.task;
 
-import com.lullaby.cinema.sys.entity.Film;
-import com.lullaby.cinema.sys.entity.UnfrozenApply;
-import com.lullaby.cinema.sys.entity.User;
+import com.lullaby.cinema.sys.entity.*;
+import com.lullaby.cinema.sys.entity.FilmHall;
 import com.lullaby.cinema.sys.message.Message;
 import com.lullaby.cinema.sys.util.FileUtil;
 import com.lullaby.cinema.sys.util.SocketUtil;
@@ -55,6 +54,30 @@ public class MessageProcessTask implements Runnable{
                     break;
                 case "getFilmList":
                     processGetFilmList(msg);
+                    break;
+                case "addFilmHall":
+                    processAddFilmHall(msg);
+                    break;
+                case "updateFilmHall":
+                    processUpdateFilmHall(msg);
+                    break;
+                case "deleteFilmHall":
+                    processDeleteFilmHall(msg);
+                    break;
+                case "getFilmHallList":
+                    processGetFilmHallList();
+                    break;
+                case "addFilmPlan":
+                    processAddFilmPlan(msg);
+                    break;
+                case "updateFilmPlan":
+                    processUpdateFilmPlan(msg);
+                    break;
+                case "deleteFilmPlan":
+                    processDeleteFilmPlan(msg);
+                    break;
+                case "getFilmPlanList":
+                    processGetFilmPlanList(msg);
                     break;
             }
         }
@@ -147,7 +170,7 @@ public class MessageProcessTask implements Runnable{
         UnfrozenApply unfrozenApply = msg.getData();
         List<User> storageUsers = processFirstStorage();
         Optional<User> optionalUnfrozenApply = storageUsers.stream().filter(user -> user.getUsername().equals(unfrozenApply.getUsername())).findFirst();
-        Integer result;
+        int result;
         if (optionalUnfrozenApply.isPresent()) {
             User user = optionalUnfrozenApply.get();
             if (user.getState() == 1) { // 账号正常
@@ -168,9 +191,9 @@ public class MessageProcessTask implements Runnable{
      * 处理添加影片请求
      * @param msg 信息
      */
-    public void processAddFilm(Message<Film> msg) {
-        Film addFilm = msg.getData();
-        List<Film> films = FileUtil.readData(FileUtil.FILM_FILE);
+    public void processAddFilm(Message<FilmHall> msg) {
+        FilmHall addFilm = msg.getData();
+        List<FilmHall> films = FileUtil.readData(FileUtil.FILM_FILE);
         films.add(addFilm);
         boolean success = FileUtil.saveData(films, FileUtil.FILM_FILE);
         SocketUtil.sendBack(client, success ? 1 : 0);
@@ -180,9 +203,9 @@ public class MessageProcessTask implements Runnable{
      * 处理更改影片请求
      * @param msg 信息
      */
-    public void processUpdateFilm(Message<Film> msg) {
-        Film updateFilm = msg.getData();
-        List<Film> films = FileUtil.readData(FileUtil.FILM_FILE);
+    public void processUpdateFilm(Message<FilmHall> msg) {
+        FilmHall updateFilm = msg.getData();
+        List<FilmHall> films = FileUtil.readData(FileUtil.FILM_FILE);
         int index = -1;
         for (int i = 0; i < films.size(); i++) {
             if (films.get(i).getId().equals(updateFilm.getId())) {
@@ -190,7 +213,7 @@ public class MessageProcessTask implements Runnable{
                 break;
             }
         }
-        Integer result;
+        int result;
         if (index == -1) {  // 说明修改的影片信息不存在
             result = -1;
         } else {
@@ -207,7 +230,7 @@ public class MessageProcessTask implements Runnable{
      */
     public void processDeleteFilm(Message<String> msg) {
         String id = msg.getData();
-        List<Film> films = FileUtil.readData(FileUtil.FILM_FILE);
+        List<FilmHall> films = FileUtil.readData(FileUtil.FILM_FILE);
         int index = -1;
         for (int i = 0; i < films.size(); i++) {
             if (films.get(i).getId().equals(id)) {
@@ -215,7 +238,7 @@ public class MessageProcessTask implements Runnable{
                 break;
             }
         }
-        Integer result;
+        int result;
         if (index == -1) {  // 说明删除的影片信息不存在
             result = -1;
         } else {
@@ -232,13 +255,116 @@ public class MessageProcessTask implements Runnable{
      */
     public void processGetFilmList(Message<String> msg) {
         String name = msg.getData();
-        List<Film> films = FileUtil.readData(FileUtil.FILM_FILE);
-        List<Film> result;
+        List<FilmHall> films = FileUtil.readData(FileUtil.FILM_FILE);
+        List<FilmHall> result;
         if (name == null || name.isEmpty()) {
             result = films;
         } else {
             result = films.stream().filter(film -> film.getName().contains(name) || name.contains(film.getName())).collect(Collectors.toList());
         }
         SocketUtil.sendBack(client, result);
+    }
+
+    /**
+     *  处理增加影厅请求
+     * @param msg 信息
+     */
+    public void processAddFilmHall(Message<FilmHall> msg) {
+        FilmHall filmHall = msg.getData();
+        List<FilmHall> filmHalls = FileUtil.readData(FileUtil.FILM_HALL_FILE);
+        filmHalls.add(filmHall);
+        boolean success = FileUtil.saveData(filmHalls, FileUtil.FILM_HALL_FILE);
+        SocketUtil.sendBack(client, success ? 1 : 0);
+    }
+
+    /**
+     * 处理修改影厅请求
+     * @param msg 信息
+     */
+    public void processUpdateFilmHall(Message<FilmHall> msg) {
+        FilmHall updateFilmHall = msg.getData();
+        List<FilmHall> filmHalls = FileUtil.readData(FileUtil.FILM_HALL_FILE);
+        int index = -1;
+        for (int i = 0; i < filmHalls.size(); i++) {
+            if (filmHalls.get(i).getId().equals(updateFilmHall.getId())) {
+                index = i;
+                break;
+            }
+        }
+        int result;
+        if (index == -1) {  // 说明修改的影厅信息不存在
+            result = -1;
+        } else {
+            filmHalls.set(index, updateFilmHall);
+            boolean success = FileUtil.saveData(filmHalls, FileUtil.FILM_HALL_FILE);
+            result = success ? 1 : 0;
+        }
+        SocketUtil.sendBack(client, result);
+    }
+
+    /**
+     * 处理删除影厅请求
+     * @param msg 信息
+     */
+    public void processDeleteFilmHall(Message<String> msg) {
+        String id = msg.getData();
+        List<FilmHall> filmHalls = FileUtil.readData(FileUtil.FILM_HALL_FILE);
+        int index = -1;
+        for (int i = 0; i < filmHalls.size(); i++) {
+            if (filmHalls.get(i).getId().equals(id)) {
+                index = i;
+                break;
+            }
+        }
+        int result;
+        if (index == -1) {  // 说明删除的影厅信息不存在
+            result = -1;
+        } else {
+            filmHalls.remove(index);
+            boolean success = FileUtil.saveData(filmHalls, FileUtil.FILM_HALL_FILE);
+            result = success ? 1 : 0;
+        }
+        SocketUtil.sendBack(client, result);
+
+    }
+
+    /**
+     * 处理查看影厅请求
+     */
+    public void processGetFilmHallList() {
+        List<FilmHall> filmHalls = FileUtil.readData(FileUtil.FILM_HALL_FILE);
+        SocketUtil.sendBack(client, filmHalls);
+    }
+
+    /**
+     * 添加播放计划
+     * @param msg 信息
+     */
+    public void processAddFilmPlan(Message<FilmPlan> msg) {
+
+    }
+
+    /**
+     * 删除播放计划
+     * @param msg 信息
+     */
+    public void processDeleteFilmPlan(Message<FilmPlan> msg) {
+
+    }
+
+    /**
+     * 修改播放计划
+     * @param msg 信息
+     */
+    public void processUpdateFilmPlan(Message<FilmPlan> msg) {
+
+    }
+
+    /**
+     * 查看播放计划
+     * @param msg 信息
+     */
+    public void processGetFilmPlanList(Message<FilmPlan> msg) {
+
     }
 }
