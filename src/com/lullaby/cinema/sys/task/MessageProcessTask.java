@@ -5,14 +5,11 @@ import com.lullaby.cinema.sys.entity.FilmHall;
 import com.lullaby.cinema.sys.message.Message;
 import com.lullaby.cinema.sys.util.DateUtil;
 import com.lullaby.cinema.sys.util.FileUtil;
+import com.lullaby.cinema.sys.util.IdGenerator;
 import com.lullaby.cinema.sys.util.SocketUtil;
 
-import java.io.File;
 import java.net.Socket;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -81,7 +78,7 @@ public class MessageProcessTask implements Runnable{
                     processGetFilmPlanList(msg);
                     break;
                 case "getUserList": // 查看用户
-                    processGetUserList(msg);
+                    processGetUserList();
                     break;
                 case "frozenUser":  // 冻结用户
                     processFrozenUser(msg);
@@ -90,7 +87,25 @@ public class MessageProcessTask implements Runnable{
                     processUnfrozenUser(msg);
                     break;
                 case "getUnfrozenApplyList":    // 查看用户解冻申请
-                    processGetUnfrozenApplyList(msg);
+                    processGetUnfrozenApplyList();
+                    break;
+                case "getOrderList":    // 查看订单
+                    processGetOrderList(msg);
+                    break;
+                case "getUserOrderList":    // 查看用户订单
+                    processGetUserOrderList(msg);
+                    break;
+                case "updateOrder":    // 修改订单
+                    processUpdateOrder(msg);
+                    break;
+                case "cancelOrder":    // 取消订单
+                    processCancelOrder(msg);
+                    break;
+                case "auditOrder":    // 审核订单
+                    processAuditOrder(msg);
+                    break;
+                case "orderSeatOnline": // 在线订座
+                    processOrderSeatOnline(msg);
                     break;
             }
         }
@@ -144,7 +159,7 @@ public class MessageProcessTask implements Runnable{
             if (state == 1) {   // 账号正常
                 if (loginUser.getPassword().equals(user.getPassword())) {   // 密码匹配
                     result.put("process", 1);
-                    result.put("manager", user.isManager());
+                    result.put("user", user);
                 } else {    // 密码不匹配
                     result.put("process", 0);
                 }
@@ -438,33 +453,195 @@ public class MessageProcessTask implements Runnable{
 
     /**
      * 处理查看用户请求
-     * @param msg 信息
      */
-    public void processGetUserList(Message<User> msg) {
-
+    public void processGetUserList() {
+        List<User> users = FileUtil.readData(FileUtil.USER_FILE);
+        SocketUtil.sendBack(client, users);
     }
 
     /**
      * 处理查看用户解冻申请请求
-     * @param msg 信息
      */
-    public void processGetUnfrozenApplyList(Message<User> msg) {
-
+    public void processGetUnfrozenApplyList() {
+        List<UnfrozenApply> applies = FileUtil.readData(FileUtil.UNFROZEN_APPLY_FILE);
+        SocketUtil.sendBack(client, applies);
     }
 
     /**
      * 处理冻结用户请求
      * @param msg 信息
      */
-    public void processFrozenUser(Message<User> msg) {
-
+    public void processFrozenUser(Message<String> msg) {
+        String username = msg.getData();
+        List<User> users = FileUtil.readData(FileUtil.USER_FILE);
+        int index = -1;
+        for (int i = 0; i < users.size(); i++) {
+            if (users.get(i).getUsername().equals(username)) {
+                index = i;
+                break;
+            }
+        }
+        if (index == -1) {  // 账号不存在
+            SocketUtil.sendBack(client, -1);
+        } else {
+            User user = users.get(index);
+            if (user.getState() == 1) {
+                user.setState(0);   // 设置账号为冻结状态
+                boolean success = FileUtil.saveData(users, FileUtil.USER_FILE);
+                SocketUtil.sendBack(client, success ? 1 : 0);
+            } else {    // 已经被冻结
+                SocketUtil.sendBack(client, -2);
+            }
+        }
     }
 
     /**
      * 处理解冻用户请求
      * @param msg 信息
      */
-    public void processUnfrozenUser(Message<User> msg) {
+    public void processUnfrozenUser(Message<Map<String, Object>> msg) {
+        Map<String, Object> data = msg.getData();
+        List<UnfrozenApply> unfrozenApplies = FileUtil.readData(FileUtil.UNFROZEN_APPLY_FILE);
+        int index = -1;
+        for (int i = 0; i < unfrozenApplies.size(); i++) {
+            if (unfrozenApplies.get(i).getId().equals(data.get("id"))) {
+                index = i;
+                break;
+            }
+        }
+        if (index != -1) {
+            UnfrozenApply unfrozenApply = unfrozenApplies.get(index);
+            int state = unfrozenApply.getState();
+            if (state == 0) {   // 待处理
+                unfrozenApply.setState((Integer) data.get("number"));
+                List<User> users = FileUtil.readData(FileUtil.USER_FILE);
+                for (User user : users) {
+                    if (user.getUsername().equals(unfrozenApply.getUsername())) {
+                        user.setState((int)data.get("number") == 1 ? 1 : 0);
+                        break;
+                    }
+                }
+                FileUtil.saveData(users, FileUtil.USER_FILE);
+                boolean success = FileUtil.saveData(unfrozenApplies, FileUtil.UNFROZEN_APPLY_FILE);
+                SocketUtil.sendBack(client, success ? 1 : 0);
+            } else {
+                SocketUtil.sendBack(client, -1);
+            }
+        } else {    // 解冻申请编号不存在
+            SocketUtil.sendBack(client, -2);
+        }
+    }
 
+    /**
+     * 处理在线订座请求
+     * @param msg 信息
+     */
+    public void processOrderSeatOnline(Message<Map<String, Object>> msg) {
+        Map<String, Object> data = msg.getData();
+        String planId = (String) data.get("planId");
+        int row = (int) data.get("row");
+        int col = (int) data.get("col");
+        String username = (String) data.get("username");
+        List<FilmPlan> filmPlans = FileUtil.readData(FileUtil.FILM_PLAN_FILE);
+        Optional<FilmPlan> optionalFilmPlan = filmPlans.stream().filter(filmPlan -> filmPlan.getId().equals(planId)).findFirst();
+        if (optionalFilmPlan.isPresent()) {
+            FilmPlan filmPlan = optionalFilmPlan.get();
+            FilmHall filmHall = filmPlan.getFilmHall();
+            filmHall.setOwners(row, col, username);
+            List<FilmHall> filmHalls = FileUtil.readData(FileUtil.FILM_HALL_FILE);
+            Optional<FilmHall> optionalFilmHall = filmHalls.stream().filter(hall -> hall.getId().equals(filmHall.getId())).findFirst();
+            if (optionalFilmHall.isPresent()) {
+                FilmHall hall = optionalFilmHall.get();
+                hall.setOwners(row, col, username);
+                FileUtil.saveData(filmHalls, FileUtil.FILM_HALL_FILE);
+            } else {
+                SocketUtil.sendBack(client, -1);
+                return;
+            }
+            boolean success = FileUtil.saveData(filmPlans, FileUtil.FILM_PLAN_FILE);
+            String info = filmHall.getName() + " 第" + row + "排第" + col + "列";
+            Order order = new Order(IdGenerator.generateId(10), filmPlan.getFilm().getName(), filmPlan.getBegin(), filmPlan.getEnd(), info, 1, username);
+            List<Order> orders = FileUtil.readData(FileUtil.ORDER_FILE);
+            orders.add(order);
+            FileUtil.saveData(orders, FileUtil.ORDER_FILE);
+            SocketUtil.sendBack(client, success ? 1 : 0);
+        } else {
+            SocketUtil.sendBack(client, -1);
+        }
+    }
+
+    /**
+     * 处理查看订单请求
+     * @param msg 信息
+     */
+    public void processGetOrderList(Message msg) {
+        Object data = msg.getData();
+        List<Order> orders = FileUtil.readData(FileUtil.ORDER_FILE);
+        if (data == null) {
+            SocketUtil.sendBack(client, orders);
+        } else {
+            int state = (int) data;
+            List<Order> orderList = orders.stream().filter(order -> order.getState() == state).toList();
+            SocketUtil.sendBack(client, orderList);
+        }
+    }
+
+    /**
+     * 处理查看用户订单请求
+     * @param msg 信息
+     */
+    public void processGetUserOrderList(Message<String> msg) {
+        String username = msg.getData();
+        List<Order> orders = FileUtil.readData(FileUtil.ORDER_FILE);
+        List<Order> result = orders.stream().filter(order -> order.getOwner().equals(username)).toList();
+        SocketUtil.sendBack(client, result);
+    }
+
+    /**
+     * 处理更新订单请求
+     * @param msg 信息
+     */
+    public void processUpdateOrder(Message msg) {
+
+    }
+
+    /**
+     * 处理取消订单请求
+     * @param msg 信息
+     */
+    public void processCancelOrder(Message<String> msg) {
+        String orderId = msg.getData();
+        List<Order> orders = FileUtil.readData(FileUtil.ORDER_FILE);
+        Optional<Order> optionalOrder = orders.stream().filter(order -> order.getId().equals(orderId)).findFirst();
+        if (optionalOrder.isPresent()) {
+            Order order = optionalOrder.get();
+            if (order.getState() == 1) {
+                order.setState(0);  // 更改订单状态为取消中
+                boolean success = FileUtil.saveData(orders, FileUtil.ORDER_FILE);
+                SocketUtil.sendBack(client, success ? 1 : 0);
+            } else {    // 订单处于取消中，或已退订
+                SocketUtil.sendBack(client, -2);
+            }
+        } else {
+            SocketUtil.sendBack(client, -1);
+        }
+    }
+
+    /**
+     * 处理审核订单请求
+     * @param msg 信息
+     */
+    public void processAuditOrder(Message<String> msg) {
+        String orderId = msg.getData();
+        List<Order> orders = FileUtil.readData(FileUtil.ORDER_FILE);
+        Optional<Order> optionalOrder = orders.stream().filter(order -> order.getId().equals(orderId)).findFirst();
+        if (optionalOrder.isPresent()) {
+            Order order = optionalOrder.get();
+            order.setState(2);
+            boolean success = FileUtil.saveData(orders, FileUtil.ORDER_FILE);
+            SocketUtil.sendBack(client, success ? 1 : 0);
+        } else {
+            SocketUtil.sendBack(client, -1);
+        }
     }
 }

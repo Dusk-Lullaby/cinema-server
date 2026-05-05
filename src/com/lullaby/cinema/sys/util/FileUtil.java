@@ -27,7 +27,7 @@ public class FileUtil {
     /**
      * 订单存档文件
      */
-    public static final String ORDER_FILE = "data.order.obj";
+    public static final String ORDER_FILE = "data/order.obj";
     /**
      * 解冻申请存档文件
      */
